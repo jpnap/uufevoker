@@ -40,8 +40,8 @@ def get_arp_cache(addr, dev):
         return (None, None)
 
 
-def set_arp_cache(addr, lladdr, dev, nud_state):
-    command = '/sbin/ip neigh add %s lladdr %s nud %s dev %s' % (
+def set_or_update_arp_cache(addr, lladdr, dev, nud_state):
+    command = '/sbin/ip neigh replace %s lladdr %s nud %s dev %s' % (
         addr, lladdr, nud_state, dev)
     proc = subprocess.Popen(
         command,
@@ -102,7 +102,7 @@ if dstmac is None:
         sys.exit(2)
     else:
         dstmac = reply[ARP].hwsrc
-        set_arp_cache(pdst, dstmac, iface, 'reachable')
+        set_or_update_arp_cache(pdst, dstmac, iface, 'reachable')
 
 elif nud_state != 'REACHABLE':
     reply = arp_unicast(dstmac, pdst, iface, timeout)
