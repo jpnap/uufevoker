@@ -109,6 +109,8 @@ elif nud_state != 'REACHABLE':
     if reply is None:
         print('%s: was-at %s on kernel arp cache but gone' % (pdst, dstmac))
         sys.exit(2)
+    else:
+        set_or_update_arp_cache(pdst, dstmac, iface, 'reachable')
 
 reply = arp_floody(dstmac, pdst, hwsrc, iface, timeout)
 if reply:
