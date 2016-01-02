@@ -12,15 +12,19 @@ TBD
     - depends on `ip neigh` command
 - Python
 - Scapy
+- netaddr (python package)
+- netifaces (python package)
 
 Tested with following environments:
 
 - CentOS 6.4
     - kernel-2.6.32-358.123.2.openstack.el6.x86_64
     - iproute-2.6.32-130.el6ost.netns.2.x86_64
-    - Python 2.6.6 (OS default rpm)
-    - Scapy 2.0.0 (from epel)
-    - Nagios 3.5.1 (from epel)
+    - Python 2.6.6 (base)
+    - Scapy 2.0.0 (epel)
+    - python-netaddr-0.7.5-4.el6.noarch (base)
+    - python-netifaces-0.5-1.el6.x86_64 (epel)
+    - Nagios 3.5.1 (epel)
 
 ## Usage
 

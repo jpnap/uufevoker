@@ -2,13 +2,21 @@
 
 import logging
 import logging.handlers
+import netaddr
+from netaddr import IPAddress, EUI
+import netifaces
 import re
 import sys
 import subprocess
 
 logging.getLogger('scapy.runtime').setLevel(logging.ERROR)
-from scapy.all import Ether, ARP, srp1
+from scapy.all import conf, Ether, ARP, srp1
 
+
+def get_ip_and_mac(dev):
+    mac = netifaces.ifaddresses(dev)[netifaces.AF_LINK][0]['addr']
+    ip = netifaces.ifaddresses(dev)[netifaces.AF_INET][0]['addr']
+    return (mac, ip)
 
 def get_arp_cache(addr, dev):
     command = '/sbin/ip neigh show to %s dev %s' % (addr, dev)
@@ -62,27 +70,57 @@ def set_or_update_arp_cache(addr, lladdr, dev, nud_state):
         sys.exit(3)
 
 
-def arp_broadcast(pdst, iface, timeout):
-    request = Ether(dst="ff:ff:ff:ff:ff:ff") / ARP(op=1, pdst=pdst)
-    reply = srp1(request, iface=iface, timeout=timeout, verbose=0)
+def arp_broadcast(srcmac, psrc, pdst, iface, timeout):
+    ether_layer = Ether(src=srcmac, dst="ff:ff:ff:ff:ff:ff")
+    arp_layer = ARP(op=1, hwsrc=srcmac, psrc=psrc, pdst=pdst)
+    request = ether_layer / arp_layer
+    f = (
+        'ether dst %s and ' % srcmac +
+        'arp and ' +
+        'arp[6:2] = 0x0002 and ' + # op: is-at(2)
+        'arp[14:4] = 0x%x and ' % IPAddress(pdst) + # psrc
+        'arp[24:4] = 0x%x' % IPAddress(psrc)) # pdst
+    conf.iface = iface
+    reply = srp1(request, iface=iface, filter=f, timeout=timeout, verbose=0)
     return reply
 
 
-def arp_unicast(dstmac, pdst, iface, timeout):
-    request = Ether(dst=dstmac) / ARP(op=1, pdst=pdst)
-    reply = srp1(request, iface=iface, timeout=timeout, verbose=0)
+def arp_unicast(srcmac, dstmac, psrc, pdst, iface, timeout):
+    ether_layer = Ether(src=srcmac, dst=dstmac)
+    arp_layer = ARP(op=1, hwsrc=srcmac, psrc=psrc, pdst=pdst)
+    request = ether_layer / arp_layer
+    f = (
+        'ether src %s and ' % dstmac +
+        'ether dst %s and ' % srcmac +
+        'arp and ' +
+        'arp[6:2] = 0x0002 and ' + # op: is-at(2)
+        'arp[14:4] = 0x%x and ' % IPAddress(pdst) + # psrc
+        'arp[24:4] = 0x%x' % IPAddress(psrc)) # pdst
+    conf.iface = iface
+    reply = srp1(request, iface=iface, filter=f, timeout=timeout, verbose=0)
     return reply
 
 
-def arp_floody(dstmac, pdst, hwsrc, iface, timeout):
-    request = Ether(dst=dstmac) / ARP(op=1, pdst=pdst, hwsrc=hwsrc)
-    reply = srp1(request, iface=iface, timeout=timeout, verbose=0)
+def arp_floody(srcmac, dstmac, hwsrc, psrc, pdst, iface, timeout):
+    ether_layer = Ether(src=srcmac, dst=dstmac)
+    arp_layer =  ARP(op=1, hwsrc=hwsrc, psrc=psrc, pdst=pdst)
+    request = ether_layer / arp_layer
+    f = (
+        'ether src %s and ' % dstmac +
+        'ether dst %s and ' % hwsrc +
+        'arp and ' +
+        'arp[6:2] = 0x0002 and ' + # op: is-at(2)
+        'arp[14:4] = 0x%x and ' % IPAddress(pdst) + # psrc
+        'arp[24:4] = 0x%x' % IPAddress(psrc)) # pdst
+    conf.iface = iface
+    reply = srp1(request, iface=iface, filter=f, timeout=timeout, verbose=0)
     return reply
 
 
 pdst = sys.argv[1]
 hwsrc = "00:50:56:be:ee:ef"
 iface = "vlan1001"
+my_mac, my_ip = get_ip_and_mac(iface)
 timeout = 3
 
 logger = logging.getLogger('flooder')
@@ -96,7 +134,7 @@ logger.info('begin %s' % pdst)
 dstmac, nud_state = get_arp_cache(pdst, iface)
 
 if dstmac is None:
-    reply = arp_broadcast(pdst, iface, timeout)
+    reply = arp_broadcast(my_mac, my_ip, pdst, iface, timeout)
     if reply is None:
         print('%s: no arp reply received' % pdst)
         sys.exit(2)
@@ -105,14 +143,14 @@ if dstmac is None:
         set_or_update_arp_cache(pdst, dstmac, iface, 'reachable')
 
 elif nud_state != 'REACHABLE':
-    reply = arp_unicast(dstmac, pdst, iface, timeout)
+    reply = arp_unicast(my_mac, dstmac, my_ip, pdst, iface, timeout)
     if reply is None:
         print('%s: was-at %s on kernel arp cache but gone' % (pdst, dstmac))
         sys.exit(2)
     else:
         set_or_update_arp_cache(pdst, dstmac, iface, 'reachable')
 
-reply = arp_floody(dstmac, pdst, hwsrc, iface, timeout)
+reply = arp_floody(my_mac, dstmac, hwsrc, my_ip, pdst, iface, timeout)
 if reply:
     print('%s: is-at %s' % (reply[ARP].psrc, reply[ARP].hwsrc))
     exit(0)
