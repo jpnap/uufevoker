@@ -1,6 +1,6 @@
 # arpflooder
 
-Simple python script to send "floody arp" request packet to maintain forwarding tables of the ethernet switches. Intended to be used as nagios service check script.
+Simple python script to send **floody arp** request packet to maintain forwarding tables of the ethernet switches. Intended to be used as nagios service check script.
 
 ## How it works
 
@@ -31,12 +31,24 @@ Tested with following environments:
 You need root privilege.
 
 ```bash
-sudo /path/to/arpflooder/flooder.py 192.0.2.1
+sudo /path/to/arpflooder/flooder.py -i eth0 -d 192.0.2.1
 ```
 
-### command line options
+### Options
 
-TBD
+- -i/--interface *dev*  
+**(Required)** Interface from which all packets are sent out and received. This interface must have one IP address assigned and be set promiscuous mode on. If the specified interface is virtual device e.g. VLAN sub interface, then parent device must also be set promiscuous mode on.
+
+- -d/--pdst *target_ip*  
+**(Required)** Target IP address. Floody ARP requests are sent to this host.
+
+- -S/--hwsrc *mac*  
+MAC address set to *Source Hardware Address* field of floody ARP request packet. The target will send ARP reply to this MAC. **Specify any address which is not actually used in the network** to make the reply floods among all switches.  
+Default: 00:50:56:be:ee:ef
+
+- -t/--timeout *timeout*  
+Timeout in seconds waiting arp replies after every request made.  
+Default: 3 (seconds)
 
 ### Use with nagios
 
@@ -51,7 +63,7 @@ Next define a nagios command,
 ```
 define command {
   command_name    flooder
-  command_line    /usr/bin/sudo /path/to/arpflooder/flooder.py $HOSTADDRESS$
+  command_line    /usr/bin/sudo /path/to/arpflooder/flooder.py -i eth0 -d $HOSTADDRESS$ -S 00:50:56:be:ee:ef
 }
 ```
 

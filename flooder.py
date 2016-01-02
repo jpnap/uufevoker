@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import getopt
 import logging
 import logging.handlers
 import netaddr
@@ -71,7 +72,7 @@ def set_or_update_arp_cache(addr, lladdr, dev, nud_state):
 
 
 def arp_broadcast(srcmac, psrc, pdst, iface, timeout):
-    ether_layer = Ether(src=srcmac, dst="ff:ff:ff:ff:ff:ff")
+    ether_layer = Ether(src=srcmac, dst='ff:ff:ff:ff:ff:ff')
     arp_layer = ARP(op=1, hwsrc=srcmac, psrc=psrc, pdst=pdst)
     request = ether_layer / arp_layer
     f = (
@@ -116,12 +117,42 @@ def arp_floody(srcmac, dstmac, hwsrc, psrc, pdst, iface, timeout):
     reply = srp1(request, iface=iface, filter=f, timeout=timeout, verbose=0)
     return reply
 
+def usaeg():
+    print('TBD')
 
-pdst = sys.argv[1]
-hwsrc = "00:50:56:be:ee:ef"
-iface = "vlan1001"
-my_mac, my_ip = get_ip_and_mac(iface)
+
+iface = None
+pdst = None
+hwsrc = '00:50:56:be:ee:ef'
 timeout = 3
+
+# parse options
+try:
+    opts, args = getopt.getopt(sys.argv[1:], 'hi:d:S:t:', [
+        'help',
+        'interface=',
+        'pdst=',
+        'hwsrc=',
+        'timeout='])
+except getopt.GetoptError as err:
+    print(err)
+    usage()
+    sys.exit(3)
+for o, a in opts:
+    if o in ('-h', '--help'):
+        usage()
+        sys.exit()
+    elif o in ('-i', '--interface'):
+        iface = a
+    elif o in ('-d', '--pdst'):
+        pdst = str(IPAddress(a))
+    elif o in ('-S', '--hwsrc'):
+        hwsrc = str(EUI(a, dialect=netaddr.mac_unix))
+    elif o in ('-t', '--timeout'):
+        timeout = int(a)
+    else:
+        assert False, 'unhandled option'
+
 
 logger = logging.getLogger('flooder')
 logger.setLevel(logging.ERROR)
@@ -130,6 +161,8 @@ syslog_handler.setFormatter(logging.Formatter('%(process)d %(message)s'))
 logger.addHandler(syslog_handler)
 
 logger.info('begin %s' % pdst)
+
+my_mac, my_ip = get_ip_and_mac(iface)
 
 dstmac, nud_state = get_arp_cache(pdst, iface)
 
