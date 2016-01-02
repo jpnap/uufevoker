@@ -1,6 +1,6 @@
-# arpflooder
+# uufevoker
 
-Simple python script to send **floody arp** request packet to maintain forwarding tables of the ethernet switches. Intended to be used as nagios service check script.
+Simple python script which evokes Unknown Unicast Flooding of the ARP reply from the target host by sending tweaked ARP requests to maintain forwarding table entries of the target in all L2 switches. Intended to be used as nagios service check script.
 
 ## How it works
 
@@ -31,7 +31,7 @@ Tested with following environments:
 You need root privilege.
 
 ```bash
-sudo /path/to/arpflooder/flooder.py -i eth0 -d 192.0.2.1
+sudo /path/to/uufevoker/uufevoker.py -i eth0 -d 192.0.2.1
 ```
 
 ### Options
@@ -40,10 +40,10 @@ sudo /path/to/arpflooder/flooder.py -i eth0 -d 192.0.2.1
 **(Required)** Interface from which all packets are sent out and received. This interface must have one IP address assigned and be set promiscuous mode on. If the specified interface is virtual device e.g. VLAN sub interface, then parent device must also be set promiscuous mode on.
 
 - -d/--pdst *target_ip*  
-**(Required)** Target IP address. Floody ARP requests are sent to this host.
+**(Required)** Target IP address. Tweaked ARP requests are sent to this host.
 
 - -S/--hwsrc *mac*  
-MAC address set to *Source Hardware Address* field of floody ARP request packet. The target will send ARP reply to this MAC. **Specify any address which is not actually used in the network** to make the reply floods among all switches.  
+MAC address set to *Source Hardware Address* field of tweaked ARP request packet. The target will send ARP reply to this MAC. **Specify any address which is not actually used in the network** to make the reply floods among all switches.  
 Default: 00:50:56:be:ee:ef
 
 - -t/--timeout *timeout*  
@@ -55,15 +55,15 @@ Default: 3 (seconds)
 If you are running nagios as non-pirivileged user e.g. nagios or nobody, you need to add sudo entry first so that the user can invoke it without any password.
 
 ```
-nagios ALL=(ALL) NOPASSWD: /path/to/arpflooder/flooder.py
+nagios ALL=(ALL) NOPASSWD: /path/to/uufevoker/uufevoker.py
 ```
 
 Next define a nagios command,
 
 ```
 define command {
-  command_name    flooder
-  command_line    /usr/bin/sudo /path/to/arpflooder/flooder.py -i eth0 -d $HOSTADDRESS$ -S 00:50:56:be:ee:ef
+  command_name    uufevoker
+  command_line    /usr/bin/sudo /path/to/uufevoker/uufevoker.py -i eth0 -d $HOSTADDRESS$ -S 00:50:56:be:ee:ef
 }
 ```
 
@@ -73,8 +73,8 @@ Then use it:
 define service {
  use                     generic-service
  host_name               TARGET_HOST
- service_description     FLOODER
- check_command           flooder
+ service_description     UUFEVOKER
+ check_command           uufevoker
 }
 ```
 
