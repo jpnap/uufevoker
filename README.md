@@ -54,8 +54,13 @@ Default: 3 (seconds)
 
 If you are running nagios as non-pirivileged user e.g. nagios or nobody, you need to add sudo entry first so that the user can invoke it without any password.
 
+**BEWARE (mostly for CentOS users): You must disable requiretty option as well.**
+
 ```
 nagios ALL=(ALL) NOPASSWD: /path/to/uufevoker/uufevoker.py
+
+#Defaults requiretty
+# comment this line out
 ```
 
 Next define a nagios command,
@@ -71,10 +76,10 @@ Then use it:
 
 ```
 define service {
- use                     generic-service
- host_name               TARGET_HOST
- service_description     UUFEVOKER
- check_command           uufevoker
+  use                     generic-service
+  host_name               TARGET_HOST
+  service_description     UUFEVOKER
+  check_command           uufevoker
 }
 ```
 
