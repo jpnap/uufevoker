@@ -124,15 +124,17 @@ def usaeg():
 iface = None
 pdst = None
 hwsrc = '00:50:56:be:ee:ef'
+psrc = '0.0.0.0'
 timeout = 3
 
 # parse options
 try:
-    opts, args = getopt.getopt(sys.argv[1:], 'hi:d:S:t:', [
+    opts, args = getopt.getopt(sys.argv[1:], 'hi:d:S:s:t:', [
         'help',
         'interface=',
         'pdst=',
         'hwsrc=',
+        'psrc=',
         'timeout='])
 except getopt.GetoptError as err:
     print(err)
@@ -148,6 +150,8 @@ for o, a in opts:
         pdst = str(IPAddress(a))
     elif o in ('-S', '--hwsrc'):
         hwsrc = str(EUI(a, dialect=netaddr.mac_unix))
+    elif o in ('-s', '--psrc'):
+        psrc = str(IPAddress(a))
     elif o in ('-t', '--timeout'):
         timeout = int(a)
     else:
@@ -183,7 +187,7 @@ elif nud_state != 'REACHABLE':
     else:
         set_or_update_arp_cache(pdst, dstmac, iface, 'reachable')
 
-reply = arp_floody(my_mac, dstmac, hwsrc, my_ip, pdst, iface, timeout)
+reply = arp_floody(my_mac, dstmac, hwsrc, psrc, pdst, iface, timeout)
 if reply:
     print('%s: is-at %s' % (reply[ARP].psrc, reply[ARP].hwsrc))
     exit(0)
