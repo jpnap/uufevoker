@@ -1,6 +1,6 @@
 # uufevoker
 
-Simple python script which evokes Unknown Unicast Flooding of the ARP reply from the target host by sending tweaked ARP requests to maintain forwarding table entries of the target in all L2 switches. Intended to be used as nagios service check script.
+Simple python script which evokes Unknown Unicast Flooding of the ARP reply from the target host by sending **Trick ARP requests** to maintain forwarding table entries of the target in all L2 switches. Intended to be used as nagios service check script.
 
 ## How it works
 
@@ -40,14 +40,14 @@ sudo /path/to/uufevoker/uufevoker.py -i eth0 -d 192.0.2.1
 **(Required)** Interface from which all packets are sent out and received. This interface must have one IP address assigned and be set promiscuous mode on. If the specified interface is virtual device e.g. VLAN sub interface, then parent device must also be set promiscuous mode on.
 
 - -d/--pdst *target_ip*  
-**(Required)** Target IP address. Tweaked ARP requests are sent to this host.
+**(Required)** Target IP address. Trick ARP requests are sent to this host.
 
 - -S/--hwsrc *mac*  
-MAC address set to *Source Hardware Address* field of tweaked ARP request packet. The target will send ARP reply to this MAC. **Specify any address which is not actually used in the network** to make the reply floods among all switches.  
+MAC address set to *Source Hardware Address* field of Trick ARP request packet. The target will send ARP reply to this MAC. **Specify any address which is not actually used in the network** to make the reply floods among all switches.  
 Default: 00:50:56:be:ee:ef
 
 - -s/--psrc *ip*  
-IP address set to *Source Protocol Address* field of tweaked ARP request packet. **It is highly recommended to specify any unused address from the same prefix as the target IP.** If you specify the same address assigned to the interface given with -i option, it may trigger Duplicate Address Detection and might break a normal communication. Also note that the default will use 0.0.0.0 but some routers may not respond to such ARP requests.  
+IP address set to *Source Protocol Address* field of Trick ARP request packet. **It is highly recommended to specify any unused address from the same prefix as the target IP.** If you specify the same address assigned to the interface given with -i option, it may trigger Duplicate Address Detection and might break a normal communication. Also note that the default will use 0.0.0.0 but some routers may not respond to such ARP requests.  
 Default: 0.0.0.0
 
 - -t/--timeout *timeout*  

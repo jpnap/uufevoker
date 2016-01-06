@@ -102,7 +102,7 @@ def arp_unicast(srcmac, dstmac, psrc, pdst, iface, timeout):
     return reply
 
 
-def arp_floody(srcmac, dstmac, hwsrc, psrc, pdst, iface, timeout):
+def arp_trick(srcmac, dstmac, hwsrc, psrc, pdst, iface, timeout):
     ether_layer = Ether(src=srcmac, dst=dstmac)
     arp_layer =  ARP(op=1, hwsrc=hwsrc, psrc=psrc, pdst=pdst)
     request = ether_layer / arp_layer
@@ -158,7 +158,7 @@ for o, a in opts:
         assert False, 'unhandled option'
 
 
-logger = logging.getLogger('flooder')
+logger = logging.getLogger('uufevoker')
 logger.setLevel(logging.ERROR)
 syslog_handler = logging.handlers.SysLogHandler(address='/dev/log')
 syslog_handler.setFormatter(logging.Formatter('%(process)d %(message)s'))
@@ -187,11 +187,11 @@ elif nud_state != 'REACHABLE':
     else:
         set_or_update_arp_cache(pdst, dstmac, iface, 'reachable')
 
-reply = arp_floody(my_mac, dstmac, hwsrc, psrc, pdst, iface, timeout)
+reply = arp_trick(my_mac, dstmac, hwsrc, psrc, pdst, iface, timeout)
 if reply:
     print('%s: is-at %s' % (reply[ARP].psrc, reply[ARP].hwsrc))
     exit(0)
 else:
-    print('%s: is-at %s but no floody arp reply received' % (
+    print('%s: is-at %s but no trick arp reply received' % (
         pdst, dstmac))
     exit(2)
