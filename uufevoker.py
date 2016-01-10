@@ -21,23 +21,7 @@ def get_ip_and_mac(dev):
 
 def get_arp_cache(addr, dev):
     command = '/sbin/ip neigh show to %s dev %s' % (addr, dev)
-    proc = subprocess.Popen(
-        command,
-        shell=True,
-        stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE)
-
-    stdout_data, stderr_data = proc.communicate()
-
-    if proc.returncode != 0:
-        output = (
-            'subprocess exited with return code (%s), ' % proc.returncode +
-            'command: (%s), ' % command +
-            'stdout: (%s), ' % stdout_data.replace('\n', '') +
-            'stderr: (%s)' % stderr_data.replace('\n', ''))
-        print(output)
-        sys.exit(3)
+    stdout_data, stderr_data = _run_ip_command(command)
 
     p = re.compile(r'%s lladdr ([0-9a-f:]{17}) ([A-Z]+)' % addr)
     m = p.match(stdout_data)
@@ -52,6 +36,15 @@ def get_arp_cache(addr, dev):
 def set_or_update_arp_cache(addr, lladdr, dev, nud_state):
     command = '/sbin/ip neigh replace %s lladdr %s nud %s dev %s' % (
         addr, lladdr, nud_state, dev)
+    _run_ip_command(command)
+
+
+def flush_arp_cache(addr, dev):
+    command = '/sbin/ip neigh flush to %s dev %s' % (addr, dev)
+    _run_ip_command(command)
+
+
+def _run_ip_command(command):
     proc = subprocess.Popen(
         command,
         shell=True,
@@ -69,6 +62,8 @@ def set_or_update_arp_cache(addr, lladdr, dev, nud_state):
             'stderr: (%s)' % stderr_data.replace('\n', ''))
         print(output)
         sys.exit(3)
+
+    return (stdout_data, stderr_data)
 
 
 def arp_broadcast(srcmac, psrc, pdst, iface, timeout):
@@ -182,6 +177,7 @@ if dstmac is None:
 elif nud_state != 'REACHABLE':
     reply = arp_unicast(my_mac, dstmac, my_ip, pdst, iface, timeout)
     if reply is None:
+        flush_arp_cache(pdst, iface)
         print('%s: was-at %s on kernel arp cache but gone' % (pdst, dstmac))
         sys.exit(2)
     else:
@@ -189,9 +185,12 @@ elif nud_state != 'REACHABLE':
 
 reply = arp_trick(my_mac, dstmac, hwsrc, psrc, pdst, iface, timeout)
 if reply:
+    set_or_update_arp_cache(pdst, dstmac, iface, 'reachable')
     print('%s: is-at %s' % (reply[ARP].psrc, reply[ARP].hwsrc))
     exit(0)
 else:
+    flush_arp_cache(pdst, iface)
+    set_or_update_arp_cache(pdst, dstmac, iface, 'stale')
     print('%s: is-at %s but no trick arp reply received' % (
         pdst, dstmac))
     exit(2)
