@@ -114,7 +114,7 @@ def arp_trick(srcmac, dstmac, hwsrc, psrc, pdst, iface, timeout):
     return reply
 
 
-def usaeg():
+def usage():
     print('TBD')
 
 
