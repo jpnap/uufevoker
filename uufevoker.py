@@ -19,6 +19,7 @@ def get_ip_and_mac(dev):
     ip = netifaces.ifaddresses(dev)[netifaces.AF_INET][0]['addr']
     return (mac, ip)
 
+
 def get_arp_cache(addr, dev):
     command = '/sbin/ip neigh show to %s dev %s' % (addr, dev)
     stdout_data, stderr_data = _run_ip_command(command)
@@ -73,9 +74,9 @@ def arp_broadcast(srcmac, psrc, pdst, iface, timeout):
     f = (
         'ether dst %s and ' % srcmac +
         'arp and ' +
-        'arp[6:2] = 0x0002 and ' + # op: is-at(2)
-        'arp[14:4] = 0x%x and ' % IPAddress(pdst) + # psrc
-        'arp[24:4] = 0x%x' % IPAddress(psrc)) # pdst
+        'arp[6:2] = 0x0002 and ' +  # op: is-at(2)
+        'arp[14:4] = 0x%x and ' % IPAddress(pdst) +  # psrc
+        'arp[24:4] = 0x%x' % IPAddress(psrc))  # pdst
     conf.iface = iface
     reply = srp1(request, iface=iface, filter=f, timeout=timeout, verbose=0)
     return reply
@@ -89,9 +90,9 @@ def arp_unicast(srcmac, dstmac, psrc, pdst, iface, timeout):
         'ether src %s and ' % dstmac +
         'ether dst %s and ' % srcmac +
         'arp and ' +
-        'arp[6:2] = 0x0002 and ' + # op: is-at(2)
-        'arp[14:4] = 0x%x and ' % IPAddress(pdst) + # psrc
-        'arp[24:4] = 0x%x' % IPAddress(psrc)) # pdst
+        'arp[6:2] = 0x0002 and ' +  # op: is-at(2)
+        'arp[14:4] = 0x%x and ' % IPAddress(pdst) +  # psrc
+        'arp[24:4] = 0x%x' % IPAddress(psrc))  # pdst
     conf.iface = iface
     reply = srp1(request, iface=iface, filter=f, timeout=timeout, verbose=0)
     return reply
@@ -99,18 +100,19 @@ def arp_unicast(srcmac, dstmac, psrc, pdst, iface, timeout):
 
 def arp_trick(srcmac, dstmac, hwsrc, psrc, pdst, iface, timeout):
     ether_layer = Ether(src=srcmac, dst=dstmac)
-    arp_layer =  ARP(op=1, hwsrc=hwsrc, psrc=psrc, pdst=pdst)
+    arp_layer = ARP(op=1, hwsrc=hwsrc, psrc=psrc, pdst=pdst)
     request = ether_layer / arp_layer
     f = (
         'ether src %s and ' % dstmac +
         'ether dst %s and ' % hwsrc +
         'arp and ' +
-        'arp[6:2] = 0x0002 and ' + # op: is-at(2)
-        'arp[14:4] = 0x%x and ' % IPAddress(pdst) + # psrc
-        'arp[24:4] = 0x%x' % IPAddress(psrc)) # pdst
+        'arp[6:2] = 0x0002 and ' +  # op: is-at(2)
+        'arp[14:4] = 0x%x and ' % IPAddress(pdst) +  # psrc
+        'arp[24:4] = 0x%x' % IPAddress(psrc))  # pdst
     conf.iface = iface
     reply = srp1(request, iface=iface, filter=f, timeout=timeout, verbose=0)
     return reply
+
 
 def usaeg():
     print('TBD')
