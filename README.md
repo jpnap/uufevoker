@@ -56,6 +56,12 @@ Default: 3 (seconds)
 
 ### Use with nagios
 
+As mentioned previously, this script is intended to be used as nagios service check script. Within nagios, exit code of check scripts reflects the state of that service. For example, 0 means OK, 2 means CRITICAL, etc. uufevoker.py exits with a certain code based on the flow shown below.
+
+![Flowchart of uufevoker.py](./docs/uufevoker_flowchart.png)
+
+#### Setup nagios
+
 If you are running nagios as non-pirivileged user e.g. nagios or nobody, you need to add sudo entry first so that the user can invoke it without any password.
 
 **BEWARE (mostly for CentOS users): You must disable requiretty option as well.**
