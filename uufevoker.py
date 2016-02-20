@@ -120,7 +120,7 @@ def usage():
 
 iface = None
 pdst = None
-hwsrc = '00:50:56:be:ee:ef'
+hwsrc = '02:00:00:be:ee:ef'
 psrc = '0.0.0.0'
 timeout = 3
 
