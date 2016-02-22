@@ -4,7 +4,9 @@ Simple python script which evokes Unknown Unicast Flooding of the ARP reply from
 
 ## How it works
 
-TBD
+**Trick ARP** uses the mechanism of ARP to trigger Unknown Unicast Flooding intentionally by spoofing SHA/SPA within ARP request packet.
+
+Usually, ARP is used to resolve the MAC of the target. When a host receives ARP request, it swaps SHA/SPA fields with THA/TPA, set its own MAC address to SHA, then sent out the packet as a reply. So the Destination field in Ethernet layer header of the reply packet *will be the same value as SHA in the request packet*. **Trick ARP** uses this mechanism. Probe host sends an **Trick ARP request** which is spoofing its SHA/SPA with **unused address in that subnet** to let the reply to be flooded across all switches because that spoofed SHA is not in any FDB.
 
 ## Prerequisites
 
