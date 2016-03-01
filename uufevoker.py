@@ -6,6 +6,7 @@ import logging.handlers
 import netaddr
 from netaddr import IPAddress, EUI
 import netifaces
+import os
 import re
 import sys
 import subprocess
@@ -67,7 +68,7 @@ def _run_ip_command(command):
     return (stdout_data, stderr_data)
 
 
-def arp_broadcast(srcmac, psrc, pdst, iface, timeout):
+def arp_broadcast(srcmac, psrc, pdst, iface, timeout, verbose=0):
     ether_layer = Ether(src=srcmac, dst='ff:ff:ff:ff:ff:ff')
     arp_layer = ARP(op=1, hwsrc=srcmac, psrc=psrc, pdst=pdst)
     request = ether_layer / arp_layer
@@ -78,11 +79,11 @@ def arp_broadcast(srcmac, psrc, pdst, iface, timeout):
         'arp[14:4] = 0x%x and ' % IPAddress(pdst) +  # psrc
         'arp[24:4] = 0x%x' % IPAddress(psrc))  # pdst
     conf.iface = iface
-    reply = srp1(request, iface=iface, filter=f, timeout=timeout, verbose=0)
+    reply = srp1(request, iface=iface, filter=f, timeout=timeout, verbose=verbose)
     return reply
 
 
-def arp_unicast(srcmac, dstmac, psrc, pdst, iface, timeout):
+def arp_unicast(srcmac, dstmac, psrc, pdst, iface, timeout, verbose=0):
     ether_layer = Ether(src=srcmac, dst=dstmac)
     arp_layer = ARP(op=1, hwsrc=srcmac, psrc=psrc, pdst=pdst)
     request = ether_layer / arp_layer
@@ -94,11 +95,11 @@ def arp_unicast(srcmac, dstmac, psrc, pdst, iface, timeout):
         'arp[14:4] = 0x%x and ' % IPAddress(pdst) +  # psrc
         'arp[24:4] = 0x%x' % IPAddress(psrc))  # pdst
     conf.iface = iface
-    reply = srp1(request, iface=iface, filter=f, timeout=timeout, verbose=0)
+    reply = srp1(request, iface=iface, filter=f, timeout=timeout, verbose=verbose)
     return reply
 
 
-def arp_trick(srcmac, dstmac, hwsrc, psrc, pdst, iface, timeout):
+def arp_trick(srcmac, dstmac, hwsrc, psrc, pdst, iface, timeout, verbose=0):
     ether_layer = Ether(src=srcmac, dst=dstmac)
     arp_layer = ARP(op=1, hwsrc=hwsrc, psrc=psrc, pdst=pdst)
     request = ether_layer / arp_layer
@@ -110,7 +111,7 @@ def arp_trick(srcmac, dstmac, hwsrc, psrc, pdst, iface, timeout):
         'arp[14:4] = 0x%x and ' % IPAddress(pdst) +  # psrc
         'arp[24:4] = 0x%x' % IPAddress(psrc))  # pdst
     conf.iface = iface
-    reply = srp1(request, iface=iface, filter=f, timeout=timeout, verbose=0)
+    reply = srp1(request, iface=iface, filter=f, timeout=timeout, verbose=verbose)
     return reply
 
 
@@ -123,16 +124,18 @@ pdst = None
 hwsrc = '02:00:00:be:ee:ef'
 psrc = '0.0.0.0'
 timeout = 3
+verbose = 0
 
 # parse options
 try:
-    opts, args = getopt.getopt(sys.argv[1:], 'hi:d:S:s:t:', [
+    opts, args = getopt.getopt(sys.argv[1:], 'hi:d:S:s:t:v', [
         'help',
         'interface=',
         'pdst=',
         'hwsrc=',
         'psrc=',
-        'timeout='])
+        'timeout=',
+        'verbose'])
 except getopt.GetoptError as err:
     print(err)
     usage()
@@ -151,48 +154,61 @@ for o, a in opts:
         psrc = str(IPAddress(a))
     elif o in ('-t', '--timeout'):
         timeout = int(a)
+    elif o in ('-v', '--verbose'):
+        verbose = 256
     else:
         assert False, 'unhandled option'
 
 
 logger = logging.getLogger('uufevoker')
-logger.setLevel(logging.ERROR)
+logger.setLevel(logging.DEBUG)
+
 syslog_handler = logging.handlers.SysLogHandler(address='/dev/log')
-syslog_handler.setFormatter(logging.Formatter('%(process)d %(message)s'))
+syslog_handler.setFormatter(logging.Formatter('%(name)s %(thread)X %(message)s'))
 logger.addHandler(syslog_handler)
 
-logger.info('begin %s' % pdst)
+class StreamToLogger(object):
+   def __init__(self, logger, log_level=logging.INFO):
+      self.logger = logger
+      self.log_level = log_level
+
+   def write(self, buf):
+      for line in buf.rstrip().splitlines():
+         self.logger.log(self.log_level, line.rstrip())
+
+sys.stdout = StreamToLogger(logger, logging.INFO)
 
 my_mac, my_ip = get_ip_and_mac(iface)
 
 dstmac, nud_state = get_arp_cache(pdst, iface)
 
 if dstmac is None:
-    reply = arp_broadcast(my_mac, my_ip, pdst, iface, timeout)
+    reply = arp_broadcast(my_mac, my_ip, pdst, iface, timeout, verbose)
     if reply is None:
-        print('%s: no arp reply received' % pdst)
+        os.write(1, '%s: no arp reply received\n' % pdst)
         sys.exit(2)
     else:
         dstmac = reply[ARP].hwsrc
         set_or_update_arp_cache(pdst, dstmac, iface, 'reachable')
 
 elif nud_state != 'REACHABLE':
-    reply = arp_unicast(my_mac, dstmac, my_ip, pdst, iface, timeout)
+    reply = arp_unicast(my_mac, dstmac, my_ip, pdst, iface, timeout, verbose)
     if reply is None:
         flush_arp_cache(pdst, iface)
-        print('%s: was-at %s on kernel arp cache but gone' % (pdst, dstmac))
+        os.write(1, '%s: was-at %s on kernel arp cache but gone\n' % (
+            pdst, dstmac))
         sys.exit(2)
     else:
         set_or_update_arp_cache(pdst, dstmac, iface, 'reachable')
 
-reply = arp_trick(my_mac, dstmac, hwsrc, psrc, pdst, iface, timeout)
+reply = arp_trick(my_mac, dstmac, hwsrc, psrc, pdst, iface, timeout, verbose)
 if reply:
     set_or_update_arp_cache(pdst, dstmac, iface, 'reachable')
-    print('%s: is-at %s' % (reply[ARP].psrc, reply[ARP].hwsrc))
+    os.write(1, '%s: is-at %s\n' % (reply[ARP].psrc, reply[ARP].hwsrc))
     exit(0)
 else:
     flush_arp_cache(pdst, iface)
     set_or_update_arp_cache(pdst, dstmac, iface, 'stale')
-    print('%s: is-at %s but no trick arp reply received' % (
+    os.write(1, '%s: is-at %s but no trick arp reply received\n' % (
         pdst, dstmac))
     exit(2)
