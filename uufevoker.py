@@ -13,11 +13,17 @@ import subprocess
 
 logging.getLogger('scapy.runtime').setLevel(logging.ERROR)
 from scapy.all import conf, Ether, ARP, srp1
+from scapy.all import IPv6, ICMPv6ND_NS, ICMPv6NDOptSrcLLAddr, ICMPv6NDOptDstLLAddr
 
 
-def get_ip_and_mac(dev):
+def get_ip_and_mac(af, dev):
     mac = netifaces.ifaddresses(dev)[netifaces.AF_LINK][0]['addr']
-    ip = netifaces.ifaddresses(dev)[netifaces.AF_INET][0]['addr']
+    ip = None
+    if af == 4:
+        ip = netifaces.ifaddresses(dev)[netifaces.AF_INET][0]['addr']
+    elif af == 6:
+        ip = netifaces.ifaddresses(dev)[netifaces.AF_INET6][0]['addr']
+
     return (mac, ip)
 
 
@@ -115,6 +121,59 @@ def arp_trick(srcmac, dstmac, hwsrc, psrc, pdst, iface, timeout, verbose=0):
     return reply
 
 
+def nd_broadcast(srcmac, psrc, pdst, iface, timeout, verbose=0):
+    request = Ether() / IPv6(src=psrc) / ICMPv6ND_NS(tgt=pdst) / ICMPv6NDOptSrcLLAddr(lladdr=srcmac)
+    reply = srp1(request, iface=iface, timeout=timeout, verbose=verbose)
+    return reply
+
+
+def nd_unicast(srcmac, dstmac, psrc, pdst, iface, timeout, verbose=0):
+    request = Ether(src=srcmac, dst=dstmac) / IPv6(src=psrc, dst=pdst) / ICMPv6ND_NS(tgt=pdst) / ICMPv6NDOptSrcLLAddr(lladdr=srcmac)
+    reply = srp1(request, iface=iface, timeout=timeout, verbose=verbose)
+    return reply
+
+
+def nd_trick(srcmac, dstmac, hwsrc, psrc, pdst, iface, timeout, verbose=0):
+    request = Ether(src=srcmac, dst=dstmac) / IPv6(src=psrc, dst=pdst) / ICMPv6ND_NS(tgt=pdst) / ICMPv6NDOptSrcLLAddr(lladdr=hwsrc)
+    reply = srp1(request, iface=iface, timeout=timeout, verbose=verbose)
+    return reply
+
+
+def resolve_broadcast(af, srcmac, psrc, pdst, iface, timeout, verbose=0):
+    resolved_mac = None
+    if af == 4:
+        reply = arp_broadcast(srcmac, psrc, pdst, iface, timeout, verbose)
+        if reply:
+            resolved_mac = reply[ARP].hwsrc
+    elif af == 6:
+        reply = nd_broadcast(srcmac, psrc, pdst, iface, timeout, verbose)
+        if reply:
+            resolved_mac = reply[ICMPv6NDOptDstLLAddr].lladdr
+
+    return resolved_mac
+
+
+def resolve_unicast(af, srcmac, dstmac, psrc, pdst, iface, timeout, verbose=0):
+    reply = None
+    if af == 4:
+        reply = arp_unicast(srcmac, dstmac, psrc, pdst, iface, timeout, verbose)
+    elif af == 6:
+        reply = nd_unicast(srcmac, dstmac, psrc, pdst, iface, timeout, verbose)
+
+    return reply
+
+
+def send_trick(af, srcmac, dstmac, hwsrc, psrc, pdst, iface, timeout, verbose=0):
+    reply = None
+    if af == 4:
+        reply = arp_trick(srcmac, dstmac, hwsrc, psrc, pdst, iface, timeout, verbose)
+    elif af == 6:
+        reply = nd_trick(srcmac, dstmac, hwsrc, psrc, pdst, iface, timeout, verbose)
+
+    return reply
+
+
+
 def usage():
     print('TBD')
 
@@ -122,14 +181,17 @@ def usage():
 iface = None
 pdst = None
 hwsrc = '02:00:00:be:ee:ef'
-psrc = '0.0.0.0'
+psrc = None
 timeout = 3
 verbose = 0
+af = 4 # default IPv4
 
 # parse options
 try:
-    opts, args = getopt.getopt(sys.argv[1:], 'hi:d:S:s:t:v', [
+    opts, args = getopt.getopt(sys.argv[1:], 'h46i:d:S:s:t:v', [
         'help',
+        'ipv4',
+        'ipv6',
         'interface=',
         'pdst=',
         'hwsrc=',
@@ -144,6 +206,10 @@ for o, a in opts:
     if o in ('-h', '--help'):
         usage()
         sys.exit()
+    elif o in ('-4', '--ipv4'):
+        af = 4
+    elif o in ('-6', '--ipv6'):
+        af = 6
     elif o in ('-i', '--interface'):
         iface = a
     elif o in ('-d', '--pdst'):
@@ -178,21 +244,21 @@ class StreamToLogger(object):
 
 sys.stdout = StreamToLogger(logger, logging.INFO)
 
-my_mac, my_ip = get_ip_and_mac(iface)
+my_mac, my_ip = get_ip_and_mac(af, iface)
 
 dstmac, nud_state = get_arp_cache(pdst, iface)
 
 if dstmac is None:
-    reply = arp_broadcast(my_mac, my_ip, pdst, iface, timeout, verbose)
-    if reply is None:
+    resolved_mac = resolve_broadcast(af, my_mac, my_ip, pdst, iface, timeout, verbose)
+    if resolved_mac is None:
         os.write(1, '%s: no arp reply received\n' % pdst)
         sys.exit(2)
     else:
-        dstmac = reply[ARP].hwsrc
+        dstmac = resolved_mac
         set_or_update_arp_cache(pdst, dstmac, iface, 'reachable')
 
 elif nud_state != 'REACHABLE':
-    reply = arp_unicast(my_mac, dstmac, my_ip, pdst, iface, timeout, verbose)
+    reply = resolve_unicast(af, my_mac, dstmac, my_ip, pdst, iface, timeout, verbose)
     if reply is None:
         flush_arp_cache(pdst, iface)
         os.write(1, '%s: was-at %s on kernel arp cache but gone\n' % (
@@ -201,10 +267,10 @@ elif nud_state != 'REACHABLE':
     else:
         set_or_update_arp_cache(pdst, dstmac, iface, 'reachable')
 
-reply = arp_trick(my_mac, dstmac, hwsrc, psrc, pdst, iface, timeout, verbose)
+reply = send_trick(af, my_mac, dstmac, hwsrc, psrc, pdst, iface, timeout, verbose)
 if reply:
     set_or_update_arp_cache(pdst, dstmac, iface, 'reachable')
-    os.write(1, '%s: is-at %s\n' % (reply[ARP].psrc, reply[ARP].hwsrc))
+    os.write(1, '%s: is-at %s\n' % (pdst, dstmac))
     exit(0)
 else:
     flush_arp_cache(pdst, iface)
